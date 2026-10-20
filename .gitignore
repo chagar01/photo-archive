@@ -1,0 +1,5 @@
+dist/
+__pycache__/
+*.pyc
+service-account.json
+*.json.key

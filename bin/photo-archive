@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Installed by install.sh. See `photo-archive --help`.
+exec python3 "${PHOTO_ARCHIVE_LIB:-$HOME/.local/lib/photo-archive}/pipeline.py" "$@"
