@@ -40,7 +40,8 @@ Re-run it at any time to change settings.
 
 To update an existing machine without the full installer, copy a new tarball over and run
 `photo-archive/scripts/immich-as-user.sh [DATA_FOLDER]`. It switches Immich to run as you instead
-of root, and gives back any data files a `sudo`-run install left owned by root.
+of root, gives back any data files a `sudo`-run install left owned by root, and moves Immich's
+downloaded models out of the old Docker volume (then removes it).
 
 ## Use
 

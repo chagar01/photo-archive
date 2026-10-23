@@ -50,6 +50,17 @@ for p in "$BASE_DIR"/* "$IMMICH_DIR"/* "$IMMICH_DIR"/.env; do
 done
 chmod 600 "$IMMICH_DIR/.env"
 
+# Models used to live in the Docker volume <project>_model-cache: move them over rather
+# than download again. The emptied volume is removed once Immich is confirmed working.
+project="$(sudo sed -n 's/^name:[[:space:]]*//p' "$IMMICH_DIR/docker-compose.yml" | tr -d "\"'")"
+old_vol="${project:-$(basename "$IMMICH_DIR")}_model-cache"
+old_dir="$(sudo docker volume inspect -f '{{.Mountpoint}}' "$old_vol" 2>/dev/null || true)"
+if [[ -n "$old_dir" && -z "$(ls -A "$IMMICH_DIR/ml-cache/cache")" ]] && sudo test -n "$(sudo ls -A "$old_dir")"; then
+    echo "Moving downloaded models from Docker volume $old_vol to $IMMICH_DIR/ml-cache/cache..."
+    sudo cp -a "$old_dir/." "$IMMICH_DIR/ml-cache/cache/"
+    sudo chown -R "$USER": "$IMMICH_DIR/ml-cache/cache"
+fi
+
 # Library is writable so Immich can save your edits (dates, descriptions) into
 # <photo>.xmp sidecars; read-only makes Immich silently revert them.
 cat >"$IMMICH_DIR/docker-compose.override.yml" <<EOF
@@ -85,5 +96,11 @@ for c in immich-server immich-machine-learning; do
     got="$(compose exec -T "$c" id -u)"
     [[ "$got" == "$uid" ]] || die "$c runs as uid $got, expected $uid"
 done
+if [[ -n "$old_dir" ]]; then
+    # Docker refuses while any container still mounts it, so this can't pull models from
+    # under Immich. The base compose file still declares it; an empty one may reappear.
+    sudo docker volume rm "$old_vol" >/dev/null 2>&1 \
+        && echo "Removed the old model volume $old_vol." \
+        || warn "Couldn't remove the old model volume; later: sudo docker volume rm $old_vol"
+fi
 echo "Done: Immich is up and runs as $USER (uid $uid)."
-echo "The face/search models re-download once (a few hundred MB) into ml-cache/."
