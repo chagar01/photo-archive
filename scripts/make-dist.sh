@@ -17,4 +17,4 @@ if [[ "${1:-}" == --key ]]; then
 fi
 (umask 077; tar -C "$tmp" -czf "dist/$name.tar.gz" photo-archive)
 echo "dist/$name.tar.gz"
-[[ "$name" == *with-key ]] && echo "Contains a private key: copy it securely and delete it after install."
+if [[ "$name" == *with-key ]]; then echo "Contains a private key: copy it securely and delete it after install."; fi
