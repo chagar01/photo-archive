@@ -78,6 +78,8 @@ means the Takeout schedule (which runs every 2 months, for a year) has expired.
 - With a read-write mount, **permanently deleting a photo deletes the original file and its `.xmp`**. Trash retention is set to 60 days
   (`immich.ensure_trash_days`).
 - The API has no `lockedProperties`, so edits are detected by sidecar hash.
+- `immich-server` and `immich-machine-learning` run as the installing user (`user:` in the override; ML caches bind-mounted
+  under `immich/ml-cache/`), so Immich-written `.xmp` files stay editable by the pipeline. Postgres/valkey keep their image users.
 
 ## Working rules
 - Run the tests after every change. Do a dry run (`takeout_sync.py` without `--apply`, or `photo-archive --dry-run`) before
