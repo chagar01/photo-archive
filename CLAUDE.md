@@ -29,6 +29,7 @@ means the Takeout schedule (which runs every 2 months, for a year) has expired.
   rclone, the service-account key, the folder (checked for Editor), the Apps Script instructions, config and cron.
   It installs code into `~/.local/lib/photo-archive`, `~/.local/bin/photo-archive` and `~/.config/photo-archive/config.env`.
 - `scripts/make-dist.sh [--key KEY.json]`: builds a tarball for another machine.
+- `scripts/immich-as-user.sh DATA [--no-start]`: the Immich override (`user:`, mounts) and ownership fixes; install.sh calls it.
 - `tests/`: `test_takeout_sync.py` (end-to-end `--apply` over synthetic months, plus the date rules) and `test_pipeline.py`
   (fake Drive and fake rclone through every outcome, plus a real RS256 JWT check). **Run both after any change**:
   `python3 tests/test_takeout_sync.py && python3 tests/test_pipeline.py`. After changing `lib/`, re-run
