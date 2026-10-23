@@ -698,7 +698,8 @@ def main(argv=None) -> int:
     ap.add_argument("--delete-input", action="store_true",
                     help="with --apply: delete the Takeout parts after a fully successful run")
     ap.add_argument("--allow-mass-archive", action="store_true",
-                    help=f"allow archiving more than {MAX_ARCHIVE_FRACTION * 100:.0f}%% of the library")
+                    help=f"allow archiving more than {MAX_ARCHIVE_FRACTION * 100:.0f}%% of the library, "
+                         "or that many photos newly deleted in Immich")
     ap.add_argument("--immich-url", default="http://localhost:2283")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
@@ -729,13 +730,19 @@ def main(argv=None) -> int:
     if client is not None:
         try:
             lib_id = client.library_id()
+            total, offline = client.counts(lib_id)
+            if offline > max(total * library.MAX_MISSING_FRACTION, 20):
+                raise SystemExit(
+                    f"Immich reports {offline:,} of {total:,} photos offline: it can't see "
+                    f"{base / 'Library'}. Check the Library mount in immich/"
+                    f"docker-compose.override.yml (scripts/immich-as-user.sh rewrites it).")
             trashed = client.trashed_paths(lib_id)
             if args.apply:
                 client.ensure_trash_days()
         except immich.ImmichError as e:
             log.warning("Immich unavailable (%s); trashed photos will be checked next run", e)
             client = None
-    h = library.harvest(state, base, trashed)
+    h = library.harvest(state, base, trashed, args.allow_mass_archive)
     if args.apply:
         library.apply_harvest(state, base, h)
         library.ensure_overrides_template(base)

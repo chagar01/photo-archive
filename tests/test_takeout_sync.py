@@ -110,6 +110,26 @@ older = snapshot('F', A); newer = root/'F'/'Takeout'/'takeout-20261201T000000Z-1
 (older/'takeout-20261101T000000Z-1-001.zip').rename(older/'takeout-20261001T000000Z-1-001.zip')
 import shutil; shutil.copy(older/'takeout-20261001T000000Z-1-001.zip', newer)
 assert ts.discover(older).export == 'takeout-20261001T000000Z-1'
+
+# Guards against a mis-mounted Immich: offline assets it trashed itself are not deletions,
+# and a mass of newly trashed photos needs --allow-mass-archive.
+import immich
+c = immich.Client('http://x', 'k')
+c._call = lambda m, p, b=None: {'assets': {'nextPage': None, 'items': [
+    {'originalPath': '/mnt/library/2020/01/a.jpg', 'isTrashed': True, 'isOffline': True},
+    {'originalPath': '/mnt/library/2020/01/b.jpg', 'isTrashed': True, 'isOffline': False}]}}
+assert c.trashed_paths('lib') == ['2020/01/b.jpg']
+base = root/'base2'; (base/'state').mkdir(parents=True)
+assert apply(snapshot('G', {f'Photos from 2020/p{i}.jpg': (J(b'p%d' % i), f'g{i}', 1600000000 + i * 99999)
+                            for i in range(25)})) == 0
+st = library.State(base/'state'/'library.sqlite')
+homes = [r['home'] for r in st.rows.values()]
+try:
+    library.harvest(st, base, homes); assert False, 'mass trash not refused'
+except SystemExit as e:
+    assert '25 of 25 photos newly in Immich' in str(e), e
+assert len(library.harvest(st, base, homes, allow_mass_trash=True).trashed) == 25
+assert len(library.harvest(st, base, homes[:3]).trashed) == 3
 print('all apply tests passed')
 
 # --- Date heuristics ---

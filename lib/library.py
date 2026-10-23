@@ -114,9 +114,11 @@ class Harvest:
 
 
 MAX_MISSING_FRACTION = 0.05
+MAX_TRASHED_FRACTION = 0.05
 
 
-def harvest(state: State, base: Path, trashed_paths: list[str] | None) -> Harvest:
+def harvest(state: State, base: Path, trashed_paths: list[str] | None,
+            allow_mass_trash: bool = False) -> Harvest:
     h = Harvest()
     lib = base / "Library"
     active = state.by_status("active")
@@ -133,6 +135,11 @@ def harvest(state: State, base: Path, trashed_paths: list[str] | None) -> Harves
     for p in trashed_paths or []:
         if (r := by_home.get(p)) is not None and not r["archive"]:
             h.trashed.append(r["key"])
+    if not allow_mass_trash and len(h.trashed) > max(len(active) * MAX_TRASHED_FRACTION, 20):
+        raise SystemExit(
+            f"{len(h.trashed):,} of {len(active):,} photos newly in Immich's trash (> "
+            f"{MAX_TRASHED_FRACTION:.0%}). If you really deleted them, re-run with "
+            f"--allow-mass-archive; otherwise restore them in Immich's trash.")
 
     for r in active:
         if r["key"] in h.missing or not r["xmp_hash"] or r["user_xmp"]:

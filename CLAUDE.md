@@ -46,7 +46,9 @@ means the Takeout schedule (which runs every 2 months, for a year) has expired.
 - **A Library path never changes** (`YYYY/MM/YYYYMMDD_HHMMSS_name`, from the date decided at first sight). Re-dating rewrites
   only the `.xmp` and the mtime, because moving a file loses its Immich identity (edits, faces, albums). A replacement takes over the old path.
 - Guards: no archiving from an incomplete snapshot. A run refuses if more than 5% (and more than 20 items) would be archived, or if
-  more than 5% of Library files are missing (e.g. an unmounted disk).
+  more than 5% of Library files are missing (e.g. an unmounted disk), or if Immich reports more than 5% of photos offline
+  (it can't see the Library: a wrong mount). Immich trashes offline assets itself, so offline ones are never treated as
+  deletions, and more than 5% (and 20) newly trashed photos need `--allow-mass-archive`.
 - Python 3, stdlib only. External tools: exiftool (embedded dates), openssl (JWT), rclone, Docker.
 
 ## Takeout input quirks

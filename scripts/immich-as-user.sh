@@ -27,9 +27,11 @@ if [[ -z "$BASE_DIR" && -f "$CONFIG_FILE" ]]; then
     BASE_DIR="$(bash -c 'source "$1"; printf %s "$BASE_DIR"' _ "$CONFIG_FILE")"
 fi
 [[ -n "$BASE_DIR" ]] || die "usage: $0 DATA_FOLDER   (the folder holding Library/ and immich/)"
-BASE_DIR="${BASE_DIR%/}"
+# Absolute: Docker reads relative paths in the override from the immich/ folder.
+BASE_DIR="$(realpath -m -- "${BASE_DIR/#\~/$HOME}")"
 IMMICH_DIR="$BASE_DIR/immich"
 sudo test -f "$IMMICH_DIR/docker-compose.yml" || die "no Immich setup in $IMMICH_DIR"
+sudo test -d "$BASE_DIR/Library" || die "no Library folder in $BASE_DIR"
 uid="$(id -u)"; gid="$(id -g)"
 compose() { (cd "$IMMICH_DIR" && sudo docker compose "$@"); }
 
@@ -96,6 +98,24 @@ for c in immich-server immich-machine-learning; do
     got="$(compose exec -T "$c" id -u)"
     [[ "$got" == "$uid" ]] || die "$c runs as uid $got, expected $uid"
 done
+mounted="$(sudo docker inspect "$(compose ps -q immich-server)" \
+    -f '{{range .Mounts}}{{if eq .Destination "/mnt/library"}}{{.Source}}{{end}}{{end}}')"
+[[ "$mounted" == "$BASE_DIR/Library" ]] || die "Immich mounts '$mounted' as the Library, expected $BASE_DIR/Library"
+compose exec -T immich-server sh -c 't=/mnt/library/.write-test; touch $t && rm $t' \
+    || die "Immich can't write to $BASE_DIR/Library"
+# Photos Immich marked offline (and trashed) while it couldn't see them come back on a scan.
+key_file="$BASE_DIR/state/immich_api_key"
+if [[ -s "$key_file" ]]; then
+    api() { curl -fsS -H "x-api-key: $(cat "$key_file")" -H 'content-type: application/json' "$@"; }
+    lib_id="$(api "http://localhost:${port:-2283}/api/libraries" | python3 -c '
+import json, sys
+print(next((l["id"] for l in json.load(sys.stdin) if "/mnt/library" in l["importPaths"]), ""))' || true)"
+    if [[ -n "$lib_id" ]] && api -X POST "http://localhost:${port:-2283}/api/libraries/$lib_id/scan" >/dev/null; then
+        echo "Asked Immich to rescan the Library (photos marked offline come back within minutes)."
+    else
+        warn "Couldn't start a Library scan; in Immich: Administration > External Libraries > Scan."
+    fi
+fi
 if [[ -n "$old_dir" ]]; then
     # Docker refuses while any container still mounts it, so this can't pull models from
     # under Immich. The base compose file still declares it; an empty one may reappear.

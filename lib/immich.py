@@ -62,10 +62,18 @@ class Client:
             assets = res["assets"]
             for a in assets["items"]:
                 p = a.get("originalPath", "")
-                if a.get("isTrashed") and p.startswith(CONTAINER_ROOT + "/"):
+                # Offline = Immich can't see the file (Library unmounted or mis-mounted);
+                # Immich trashes those itself, so they say nothing about the user's wishes.
+                if a.get("isTrashed") and not a.get("isOffline") and p.startswith(CONTAINER_ROOT + "/"):
                     out.append(p[len(CONTAINER_ROOT) + 1:])
             page = int(assets["nextPage"]) if assets.get("nextPage") else 0
         return out
+
+    def counts(self, library_id: str) -> tuple[int, int]:
+        """(all assets, offline assets) in the library, trashed ones included."""
+        n = lambda **f: self._call("POST", "/search/statistics",
+                                   {"libraryId": library_id, "withDeleted": True, **f})["total"]
+        return n(), n(isOffline=True)
 
     def ensure_trash_days(self, days: int = MIN_TRASH_DAYS) -> None:
         cfg = self._call("GET", "/system-config")
