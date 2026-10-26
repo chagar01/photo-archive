@@ -1,8 +1,8 @@
 # photo-archive
 
 Monthly, unattended Google Photos backup into a self-hosted, browsable archive (Immich).
-Supersedes `~/code/google_drive_mirror` (download only) and `~/code/google_photo_mirror`
-(Takeout browser automation; broken since 2026-08 by Google's login checks).
+Takeout is scheduled in Google's UI and delivered to Drive; browser automation of Takeout
+doesn't survive Google's login checks. User-facing setup is in `docs/setup.md`.
 
 ## Flow (`lib/pipeline.py`, cron: `0 1 3-9 * *`)
 1. **Download**: `rclone copy` from the Drive Takeout folder into `BASE/Takeout/` (staging). This uses a service account

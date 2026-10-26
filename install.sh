@@ -49,6 +49,7 @@ version_ge() {
 
 bold "photo-archive installer"
 echo "Monthly: download Google Takeout from Drive -> verify -> let Google trash it -> update the photo library."
+echo "The Google-side steps (Takeout, service account, Apps Script) are explained in docs/setup.md."
 [[ $EUID -ne 0 ]] || die "run as your normal user (it asks for sudo when needed)"
 [[ "$(uname -s)" == Linux ]] || die "Linux only"
 command -v apt-get >/dev/null || die "Debian/Ubuntu (apt) only"

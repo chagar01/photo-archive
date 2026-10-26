@@ -1,47 +1,46 @@
 # photo-archive
 
-Keeps a browsable, self-hosted copy of your Google Photos, updated monthly and unattended.
+Keeps a browsable, self-hosted copy of your Google Photos on your own Linux machine. It updates
+itself every month without your help, and never loses a photo.
 
-1. **Download**: Google Takeout delivers a Photos export into your Drive's Takeout folder every
-   2 months. photo-archive downloads new files with a read-only Google service account.
-2. **Verify**: every file is checked against Drive's checksum, every zip must open, and no export
-   parts may be missing.
-3. **Clean up Drive**: verified files are marked, and a small Apps Script in your Google account
-   moves them to the Drive trash (recoverable for 30 days). Nothing else in the folder is touched.
-4. **Update the library**: photos are deduplicated, dated (cross-checking Google's date against
-   EXIF, file names and camera sequences), filed under `Library/YYYY/MM/`, and shown in
-   [Immich](https://immich.app) at `http://<this-machine>:2283`.
-
-Nothing is ever deleted. Photos removed from Google Photos and old versions of changed photos go to
-`Archive/`. Dates or captions you fix in Immich are kept, and photos you delete in Immich are
-saved to `Archive/deleted-in-immich/` and never come back.
-
-## Install
-
-```sh
-scripts/make-dist.sh                    # on this machine: code only
-scripts/make-dist.sh --key ~/key.json   # ...or with the service account key bundled (keep it private)
-
-# on the target machine (Debian/Ubuntu, amd64 or arm64):
-tar xzf photo-archive-*.tar.gz && photo-archive/install.sh
+```
+Google Takeout ──every 2 months──▶ Google Drive /Takeout
+                                        │  1. download (read-only service account)
+                                        ▼
+                         your machine:  2. verify (checksums, every zip, no missing parts)
+                                        3. mark verified ──▶ Apps Script in your Google
+                                        │                     account trashes them in Drive
+                                        ▼
+                                        4. dedupe, date, file under Library/YYYY/MM/
+                                        ▼
+                                   Immich  http://<this-machine>:2283
 ```
 
-You need:
-- A Google Cloud **service account** JSON key, with the **Google Drive API enabled** in its project.
-- Your Drive **Takeout folder shared with the service account's email as Editor**. Editor lets it
-  mark verified files; it still can't delete anything you own.
-- A Takeout schedule: https://takeout.google.com > only Google Photos > "Add to Drive",
-  "Export every 2 months for 1 year", .zip, 2 GB. Re-create it yearly.
+- **Unattended**: a monthly cron job, with automatic retries and a clear status when something needs you.
+- **Dates you can trust**: Google's dates are often wrong (upload times, re-encodes, scans). Each photo's
+  date is cross-checked against EXIF, file names, album titles and neighbouring camera frames.
+- **Nothing is ever deleted**: photos removed from Google Photos, and old versions of changed photos, move
+  to `Archive/`. Photos you delete in Immich are kept in `Archive/deleted-in-immich/`.
+- **Your edits stick**: dates and captions you fix in Immich are never overwritten by later exports.
+- **Drive is cleaned up**: each export is removed from Drive once it's safely downloaded, so it doesn't
+  sit there using your Google storage.
+- **Small**: Python 3 standard library plus exiftool, rclone and Docker (for [Immich](https://immich.app)).
 
-The installer walks through system packages, the data folder, Immich (admin account, API key),
-rclone, the key, the folder, the Apps Script (paste it into script.google.com, run `install` once)
-and the schedule (default: 01:00 on the 3rd of each month, with automatic retries until the 9th).
-Re-run it at any time to change settings.
+## Setup
 
-To update an existing machine without the full installer, copy a new tarball over and run
-`photo-archive/scripts/immich-as-user.sh [DATA_FOLDER]`. It switches Immich to run as you instead
-of root, gives back any data files a `sudo`-run install left owned by root, and moves Immich's
-downloaded models out of the old Docker volume (then removes it).
+Part of the setup happens in your Google account, where no script can reach. **Follow
+[docs/setup.md](docs/setup.md)**, which gives click-by-click instructions for every step. In short:
+
+1. **Google Takeout**: schedule a Google Photos export to Drive, every 2 months.
+2. **Google Cloud**: create a service account with the Drive API enabled, and download its JSON key.
+3. **Google Drive**: share the Takeout folder with the service account as Editor.
+4. **Your machine**: `git clone https://github.com/chagar01/photo-archive.git && photo-archive/install.sh`.
+   It sets up Docker, Immich, rclone, the key, the folder and the monthly schedule.
+5. **Apps Script**: paste the generated script into script.google.com and run `install` once.
+6. **Every year**: renew the Takeout schedule (photo-archive reminds you).
+
+Requirements: Debian or Ubuntu (x86-64 or ARM64), disk space of about 2.2× your photo library, and Google
+storage with room for one export.
 
 ## Use
 
@@ -51,12 +50,27 @@ photo-archive --dry-run       # what a run would do now
 photo-archive run --force     # run now, even if this month already succeeded
 ```
 
-`NEEDS_HUMAN` outcomes also write `<data>/state/pipeline/NEEDS_ATTENTION` and log to syslog.
-
-- **Fix a date:** edit it in Immich; it sticks. For many photos, add `path,date` lines to
+- **Fix a date**: edit it in Immich; it sticks. For many photos, add `path,date` lines to
   `<data>/state/date_overrides.csv`.
-- **Review dates:** every date the pipeline had to work out is listed with its evidence in
+- **Review dates**: every date photo-archive had to work out is listed with its evidence in
   `<data>/logs/*-dates-*.csv`.
+- A run that needs you writes `<data>/state/pipeline/NEEDS_ATTENTION` and logs to syslog. See
+  [Troubleshooting](docs/setup.md#troubleshooting).
+
+## Safety
+
+- Drive files are trashed only after their checksums match locally, and only by a script in *your*
+  account that touches files carrying photo-archive's "verified" mark. Drive's trash keeps them 30 days.
+- Local export zips are deleted only after the library update succeeds with no failed files.
+- A run refuses to continue if an export has missing parts, if more than 5% of the library would be
+  archived or deleted at once, or if Immich or the disk seems unable to see the Library.
+- Library paths never change, so Immich keeps your faces, albums and edits.
+
+## Limitations
+
+- Google Photos albums aren't recreated in Immich (the photos are there, filed by date).
+- Linux with apt only. Takeout must be delivered as .zip to Google Drive (not Dropbox, OneDrive, or email).
+- Tested with Immich v3.3.3.
 
 ## Development
 
@@ -64,4 +78,10 @@ photo-archive run --force     # run now, even if this month already succeeded
 python3 tests/test_takeout_sync.py && python3 tests/test_pipeline.py
 ```
 
-See CLAUDE.md for the design and the reasons behind it.
+[CLAUDE.md](CLAUDE.md) holds the design notes and the reasons behind each decision. `scripts/make-dist.sh`
+builds a tarball for installing on another machine, and `scripts/immich-as-user.sh` updates an existing
+Immich to run as your user instead of root.
+
+## License
+
+[MIT](LICENSE)

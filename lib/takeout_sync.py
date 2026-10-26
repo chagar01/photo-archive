@@ -39,7 +39,7 @@ import immich
 import library
 import xmp
 
-DEFAULT_BASE = Path(os.environ.get("BASE_DIR", "/main/GoogleTakeout"))
+DEFAULT_BASE = Path(os.environ.get("BASE_DIR", Path.home() / "PhotoArchive"))
 
 PHOTOS_ROOT = "Takeout/Google Photos/"
 SIDECAR = ".supplemental-metadata"
