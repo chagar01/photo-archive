@@ -348,7 +348,7 @@ cat <<EOF
 
 $(bold "Almost done.") If you haven't yet, schedule Google Takeout to deliver here:
   https://takeout.google.com > Deselect all > tick Google Photos > Next step >
-  Destination "Add to Drive", Frequency "Export every 2 months for 1 year",
+  Destination "Add to Drive", Frequency "Export every month for 1 year",
   File type .zip, size 2 GB > Create export.
   (Takeout schedules last a year; photo-archive status warns when exports stop arriving.)
 EOF

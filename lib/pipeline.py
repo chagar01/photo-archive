@@ -47,7 +47,7 @@ DEFAULTS = {
     "WORKERS": "6",
     "SETTLE_HOURS": "2",            # don't touch an export whose files changed this recently
     "STALE_TAG_DAYS": "7",          # verified files still in Drive after this: Apps Script broken?
-    "EXPORT_OVERDUE_DAYS": "75",    # Takeout schedules every 2 months, for one year at a time
+    "EXPORT_OVERDUE_DAYS": "75",    # > one export interval (monthly or 2-monthly), for a year at a time
     "TRANSIENT_ESCALATE_AFTER": "3",
 }
 
@@ -161,7 +161,7 @@ class Pipeline:
             self.warnings.append(
                 f"no new Takeout export since {seen[:10]}: Takeout's scheduled exports stop after "
                 f"a year -- set up a new one at https://takeout.google.com (deliver to Drive, every "
-                f"2 months, Google Photos only)")
+                f"month, Google Photos only)")
 
     def _local_photo_exports(self) -> list[str]:
         if not self.staging.is_dir():

@@ -4,7 +4,7 @@ Keeps a browsable, self-hosted copy of your Google Photos on your own Linux mach
 itself every month without your help, and never loses a photo.
 
 ```
-Google Takeout ──every 2 months──▶ Google Drive /Takeout
+Google Takeout ────monthly─────▶ Google Drive /Takeout
                                         │  1. download (read-only service account)
                                         ▼
                          your machine:  2. verify (checksums, every zip, no missing parts)
@@ -31,7 +31,7 @@ Google Takeout ──every 2 months──▶ Google Drive /Takeout
 Part of the setup happens in your Google account, where no script can reach. **Follow
 [docs/setup.md](docs/setup.md)**, which gives click-by-click instructions for every step. In short:
 
-1. **Google Takeout**: schedule a Google Photos export to Drive, every 2 months.
+1. **Google Takeout**: schedule a monthly Google Photos export to Drive (matching photo-archive's monthly run).
 2. **Google Cloud**: create a service account with the Drive API enabled, and download its JSON key.
 3. **Google Drive**: share the Takeout folder with the service account as Editor.
 4. **Your machine**: `git clone https://github.com/chagar01/photo-archive.git && photo-archive/install.sh`.

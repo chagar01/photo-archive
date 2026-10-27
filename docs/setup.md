@@ -35,7 +35,7 @@ Plan on about an hour of your own time, plus a wait of hours to days for Google'
 ## 1. Schedule Google Takeout
 
 Google Takeout is Google's export tool. photo-archive doesn't try to drive it automatically:
-Google blocks automated logins. Instead you schedule it once, and Google repeats the export every two months.
+Google blocks automated logins. Instead you schedule it once, and Google repeats the export for a year.
 
 1. Open [takeout.google.com](https://takeout.google.com), signed in to the account that holds your photos.
 2. Under **Select data to include**, click **Deselect all**, then scroll down and tick **Google Photos**.
@@ -43,7 +43,9 @@ Google blocks automated logins. Instead you schedule it once, and Google repeats
 3. Click **Next step** at the bottom.
 4. Choose:
    - **Transfer to**: *Add to Drive*
-   - **Frequency**: *Export every 2 months for 1 year*
+   - **Frequency**: *Export every month for 1 year*. This matches photo-archive's monthly run on the
+     3rd. If your account only offers *every 2 months*, that works too; the months without a
+     new export are simply no-ops.
    - **File type**: *.zip* (photo-archive doesn't read .tgz)
    - **File size**: *2 GB* (any size works; 2 GB parts make retries cheap)
 5. Click **Create export**.
@@ -56,7 +58,7 @@ appear in your Drive in a folder called **Takeout**, as `takeout-<date>-1-001.zi
 > normally delivers into it. When the first export arrives, check that it landed there. If Takeout
 > made a second folder instead, re-run `install.sh` and pick that one.
 
-Takeout stops after a year (6 exports). See [Every year](#every-year-renew-the-takeout-schedule).
+Takeout stops after a year. See [Every year](#every-year-renew-the-takeout-schedule).
 
 ## 2. Create a Google Cloud service account
 
