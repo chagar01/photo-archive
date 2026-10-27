@@ -52,6 +52,11 @@ MEDIA_EXTS = {
 # Fraction of the library allowed to disappear in one run before we refuse.
 MAX_ARCHIVE_FRACTION = 0.05
 MAX_ARCHIVE_MIN = 20             # ... and more than this many items (tiny libraries)
+# Scheduled Photos exports are incremental (only new/edited items) after the first full
+# one, and cancelling/recreating a schedule starts with a full one again. An export holding
+# less than this share of the library's photos is incremental: nothing is archived for
+# being absent from it. Anything above is full; then the archive guard above applies.
+FULL_EXPORT_MIN_COVERAGE = 0.5
 FULL_PART_BYTES = 2_000_000_000  # Takeout parts are ~2 GB; a smaller one is the last.
 
 ZIP_RE = re.compile(r"^(?P<export>takeout-\d{8}T\d{6}Z-\d+)-(?P<part>\d{3})\.zip$")
@@ -399,6 +404,9 @@ class Diff:
     replaced: list[tuple[dict, Asset]] = dataclasses.field(default_factory=list)
     archived: list[dict] = dataclasses.field(default_factory=list)
     deleted_skipped: list[Asset] = dataclasses.field(default_factory=list)
+    incremental: bool = False
+    coverage: float = 1.0           # share of active library photos present in the export
+    absent: int = 0                 # incremental only: active photos not in it (left alone)
 
 
 def diff(assets: dict[str, Asset], rows: dict[str, dict]) -> Diff:
@@ -430,6 +438,12 @@ def diff(assets: dict[str, Asset], rows: dict[str, dict]) -> Diff:
         else:
             d.archived.append(row)
     d.added = [a for a in d.added if a.key not in replacements]
+
+    active = sum(1 for r in rows.values() if r["status"] == "active")
+    if active:
+        d.coverage = 1 - len(d.archived) / active
+        if d.coverage < FULL_EXPORT_MIN_COVERAGE:
+            d.incremental, d.absent, d.archived = True, len(d.archived), []
     return d
 
 
@@ -618,6 +632,11 @@ def report(snap: Snapshot, sources: list[Source], skipped: list[str],
           f"{len(h.trashed):,} newly trashed (copied to Archive/), "
           f"{len(h.missing):,} deleted (never re-added), {len(h.csv):,} CSV date overrides")
     p("")
+    if d.incremental:
+        p(f"Export:   incremental (has {d.coverage:.0%} of the library): adds and updates only; "
+          f"{d.absent:,} photos not in it are left alone")
+    else:
+        p(f"Export:   full (has {d.coverage:.0%} of the library): photos missing from it are archived")
     p("Plan:")
     p(f"  add       {len(d.added):>7,}  ({gb(sum(a.primary.size for a in d.added))})")
     p(f"  replace   {len(d.replaced):>7,}  (old version -> Archive/replaced/)")

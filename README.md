@@ -20,7 +20,9 @@ Google Takeout ──monthly or────▶ Google Drive /Takeout
 - **Unattended**: a cron job matched to your Takeout schedule, with automatic retries and a clear status when something needs you.
 - **Dates you can trust**: Google's dates are often wrong (upload times, re-encodes, scans). Each photo's
   date is cross-checked against EXIF, file names, album titles and neighbouring camera frames.
-- **Nothing is ever deleted**: photos removed from Google Photos, and old versions of changed photos, move
+- **Full or incremental exports**: Google sends only new and edited photos after the first export;
+  photo-archive handles both kinds automatically.
+- **Nothing is ever deleted**: photos removed from Google Photos (seen when a full export arrives), and old versions of changed photos, move
   to `Archive/`. Photos you delete in Immich are kept in `Archive/deleted-in-immich/`.
 - **Your edits stick**: dates and captions you fix in Immich are never overwritten by later exports.
 - **Drive is cleaned up**: each export is removed from Drive once it's safely downloaded, so it doesn't

@@ -52,6 +52,12 @@ Google blocks automated logins. Instead you set it up once, and Google can repea
      | *Export once* (1 export) | not scheduled: you run `photo-archive run --force` when Google's email arrives | trying it out, or an occasional manual refresh |
 
      If the 3rd's run fails (network down, export still arriving), it retries daily until the 9th.
+
+     A scheduled export is **full** the first time (your whole library), then **incremental**: only
+     photos added or edited since the previous export. Cancelling and re-creating the schedule (e.g. to
+     change its day) starts again with a full export. photo-archive tells them apart by itself:
+     incremental exports add new and edited photos; full exports also move photos you've deleted in
+     Google Photos to `Archive/`. So deletions in Google Photos reach the archive only with a full export.
    - **File type**: *.zip* (photo-archive doesn't read .tgz)
    - **File size**: *2 GB* (any size works; 2 GB parts make retries cheap)
 5. Click **Create export**.

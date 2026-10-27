@@ -37,8 +37,11 @@ or 75 days (bimonthly; never for `once`) means the yearly Takeout schedule has e
   `install.sh` (or copy `lib/*.py` to `~/.local/lib/photo-archive/`) so cron uses the new code.
 
 ## Library requirements and decisions
-- Each Takeout is a full snapshot. Compared with the library, an item is new (add), changed (replace; the old version goes to
-  `Archive/replaced/`), or missing (archived to `Archive/`, never hard-deleted). Runs are idempotent, and an interrupted run is safe
+- Exports are **full or incremental**: a scheduled Photos export is full the first time, then holds only new/edited items
+  (since 2026-06); cancelling and re-creating the schedule starts with a full one again. `diff` classifies each export by how
+  much of the active library it contains (`FULL_EXPORT_MIN_COVERAGE` = 50%). In both, an item is new (add) or changed (replace;
+  the old version goes to `Archive/replaced/`). Only a **full** export archives items missing from it (to `Archive/`, never
+  hard-deleted), so deletions in Google Photos are picked up when the next full export arrives. Runs are idempotent, and an interrupted run is safe
   (`.partial` files plus a state commit after each file).
 - **Viewer: Immich**, using an external library at `/mnt/library` (= `BASE/Library`), mounted **read-write**.
 - **The user fixes dates in Immich.** Edits go to the `.xmp`, are harvested as manual dates, and that sidecar is never rewritten.

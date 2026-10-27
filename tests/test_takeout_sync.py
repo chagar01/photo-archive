@@ -130,6 +130,42 @@ except SystemExit as e:
     assert '25 of 25 photos newly in Immich' in str(e), e
 assert len(library.harvest(st, base, homes, allow_mass_trash=True).trashed) == 25
 assert len(library.harvest(st, base, homes[:3]).trashed) == 3
+
+# Incremental exports (only new/edited photos) add and replace, but archive nothing.
+G = {f'Photos from 2020/p{i}.jpg': (J(b'p%d' % i), f'g{i}', 1600000000 + i * 99999) for i in range(25)}
+inc = {'Photos from 2021/n1.jpg': (J(b'n1'), 'n1', 1610000000),
+       'Photos from 2021/n2.jpg': (J(b'n2'), 'n2', 1610100000),
+       'Photos from 2020/p0.jpg': (J(b'p0-edited'), 'g0', 1600000000)}
+assert apply(snapshot('H', inc)) == 0
+st = rows()
+count = lambda s: sum(r['status'] == s for r in st.rows.values())
+assert (count('active'), count('archived'), count('replaced')) == (27, 0, 1)
+d = ts.diff({}, st.rows)
+assert d.incremental and d.absent == 27 and not d.archived
+# A full export again (e.g. after re-creating the schedule), minus p24 deleted in Google:
+# p24 is archived; everything else is unchanged.
+full = {k: v for k, v in G.items() if k != 'Photos from 2020/p24.jpg'}
+full.update(inc)
+assert apply(snapshot('I', full)) == 0
+st = rows()
+assert (count('active'), count('archived')) == (26, 1)
+assert row_for(st, 'p24.jpg')['status'] == 'archived'
+# An export with 60% of a 100-photo library counts as full (40 to archive), so the mass-archive
+# guard stops it; with 40% it is incremental and nothing is archived.
+fake_rows = {f'{i}:1': {'status': 'active', 'item_ids': '[]', 'taken': 0} for i in range(100)}
+import types
+fake_asset = lambda k: types.SimpleNamespace(key=k, taken=0, item_ids=[])
+d60 = ts.diff({k: fake_asset(k) for k in list(fake_rows)[:60]}, fake_rows)
+assert not d60.incremental and len(d60.archived) == 40
+fake_snap = types.SimpleNamespace(complete=True)
+fake_state = types.SimpleNamespace(by_status=lambda s: list(fake_rows.values()))
+try:
+    ts.check_guards(fake_snap, d60, fake_state, False); assert False, 'guard did not refuse'
+except ts.Refused:
+    pass
+d40 = ts.diff({k: fake_asset(k) for k in list(fake_rows)[:40]}, fake_rows)
+assert d40.incremental and d40.absent == 60 and not d40.archived
+assert ts.check_guards(fake_snap, d40, fake_state, False) == []
 print('all apply tests passed')
 
 # --- Date heuristics ---
