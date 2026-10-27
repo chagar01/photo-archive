@@ -18,8 +18,8 @@ doesn't survive Google's login checks. User-facing setup is in `docs/setup.md`.
 
 Outcomes (`state/pipeline/history.log`): OK / NOTHING_NEW / TRANSIENT (exit 75, escalates after 3) / NEEDS_HUMAN
 (the `NEEDS_ATTENTION` file plus syslog). `last_success` (YYYY-MM) makes the 4th–9th cron runs no-ops once the month has succeeded.
-Warnings (in `WARNINGS`): tagged files still in Drive after 7 days, meaning the Apps Script isn't running. No new export for 75 days
-means the Takeout schedule (repeating for a year; monthly or every 2 months, whichever Google offers) has expired.
+Warnings (in `WARNINGS`): tagged files still in Drive after 7 days, meaning the Apps Script isn't running. No new export for 45 days
+means the Takeout schedule (monthly, for a year) has expired.
 
 ## Layout
 - `lib/`: everything at runtime. `pipeline.py` (orchestrator), `drive.py` (Drive API as the service account; the JWT is

@@ -47,7 +47,7 @@ DEFAULTS = {
     "WORKERS": "6",
     "SETTLE_HOURS": "2",            # don't touch an export whose files changed this recently
     "STALE_TAG_DAYS": "7",          # verified files still in Drive after this: Apps Script broken?
-    "EXPORT_OVERDUE_DAYS": "75",    # > one export interval (monthly or 2-monthly), for a year at a time
+    "EXPORT_OVERDUE_DAYS": "45",    # monthly exports, for a year at a time
     "TRANSIENT_ESCALATE_AFTER": "3",
 }
 

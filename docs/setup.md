@@ -43,9 +43,7 @@ Google blocks automated logins. Instead you schedule it once, and Google repeats
 3. Click **Next step** at the bottom.
 4. Choose:
    - **Transfer to**: *Add to Drive*
-   - **Frequency**: *Export every month for 1 year*. This matches photo-archive's monthly run on the
-     3rd. If your account only offers *every 2 months*, that works too; the months without a
-     new export are simply no-ops.
+   - **Frequency**: *Export every month for 1 year*. This matches photo-archive's monthly run on the 3rd.
    - **File type**: *.zip* (photo-archive doesn't read .tgz)
    - **File size**: *2 GB* (any size works; 2 GB parts make retries cheap)
 5. Click **Create export**.
@@ -189,7 +187,7 @@ and tells Immich to scan. Then:
 
 ## Every year: renew the Takeout schedule
 
-Takeout's scheduled exports end after a year. When no new export has arrived for 75 days,
+Takeout's scheduled exports end after a year. When no new export has arrived for 45 days,
 `photo-archive status` shows `no new Takeout export since …`. Repeat [step 1](#1-schedule-google-takeout).
 Nothing else needs to change, as long as the export lands in the same Takeout folder.
 
