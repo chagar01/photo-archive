@@ -754,7 +754,7 @@ def main(argv=None) -> int:
                 raise SystemExit(
                     f"Immich reports {offline:,} of {total:,} photos offline: it can't see "
                     f"{base / 'Library'}. Check the Library mount in immich/"
-                    f"docker-compose.override.yml (scripts/immich-as-user.sh rewrites it).")
+                    f"docker-compose.override.yml (install.sh --update rewrites it).")
             trashed = client.trashed_paths(lib_id)
             if args.apply:
                 client.ensure_trash_days()

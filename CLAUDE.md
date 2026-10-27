@@ -30,11 +30,12 @@ or 75 days (bimonthly; never for `once`) means the yearly Takeout schedule has e
   rclone, the service-account key, the folder (checked for Editor), the Apps Script instructions, config and cron.
   It installs code into `~/.local/lib/photo-archive`, `~/.local/bin/photo-archive` and `~/.config/photo-archive/config.env`.
 - `scripts/make-dist.sh [--key KEY.json]`: builds a tarball for another machine.
-- `scripts/immich-as-user.sh DATA [--no-start]`: the Immich override (`user:`, mounts) and ownership fixes; install.sh calls it.
+- `install.sh --update`: non-interactive re-run with the saved config (ask() returns the saved answer or dies, confirm() its
+  default). Updates code, Immich override, Apps Script file (warns if it changed) and cron; never pulls new Immich images.
 - `tests/`: `test_takeout_sync.py` (end-to-end `--apply` over synthetic months, plus the date rules) and `test_pipeline.py`
   (fake Drive and fake rclone through every outcome, plus a real RS256 JWT check). **Run both after any change**:
-  `python3 tests/test_takeout_sync.py && python3 tests/test_pipeline.py`. After changing `lib/`, re-run
-  `install.sh` (or copy `lib/*.py` to `~/.local/lib/photo-archive/`) so cron uses the new code.
+  `python3 tests/test_takeout_sync.py && python3 tests/test_pipeline.py`. After changing `lib/`, run
+  `install.sh --update` (or copy `lib/*.py` to `~/.local/lib/photo-archive/`) so cron uses the new code.
 
 ## Library requirements and decisions
 - Exports are **full or incremental**: a scheduled Photos export is full the first time, then holds only new/edited items

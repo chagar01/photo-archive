@@ -46,6 +46,17 @@ Part of the setup happens in your Google account, where no script can reach. **F
 Requirements: Debian or Ubuntu (x86-64 or ARM64), disk space of about 2.2× your photo library, and Google
 storage with room for one export.
 
+## Update
+
+```sh
+cd photo-archive && git pull && ./install.sh --update
+```
+
+This applies the new version with your saved settings and asks no questions. Your photos, Immich's data
+and your settings are kept, and Immich's own version is left alone. If the Apps Script changed, it tells
+you to paste the new one. To change a setting instead (data folder, Takeout frequency, schedule…), run
+`./install.sh` without `--update`.
+
 ## Use
 
 ```sh
@@ -83,8 +94,7 @@ python3 tests/test_takeout_sync.py && python3 tests/test_pipeline.py
 ```
 
 [CLAUDE.md](CLAUDE.md) holds the design notes and the reasons behind each decision. `scripts/make-dist.sh`
-builds a tarball for installing on another machine, and `scripts/immich-as-user.sh` updates an existing
-Immich to run as your user instead of root.
+builds a tarball for installing on a machine without git.
 
 ## License
 

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Interactive installer for photo-archive. Safe to re-run: current settings are
-# offered as defaults, existing data and passwords are kept.
+# Installer for photo-archive. Safe to re-run: current settings are offered as
+# defaults, and your photos, Immich data and passwords are kept.
+#
+#   install.sh            interactive install, or change settings
+#   install.sh --update   after `git pull`: apply the new code with the saved settings,
+#                         no questions (Immich's version is left as it is)
 #
 #   1 System packages (sudo apt): Docker, Python 3, exiftool, ffmpeg, sqlite3, openssl
 #   2 Data folder (Takeout staging, Library, Archive, state, logs)
@@ -9,12 +13,18 @@
 #   5 Google service account key
 #   6 Drive Takeout folder (shared with the service account as Editor)
 #   7 Apps Script that trashes verified Takeout files (runs in your Google account)
-#   8 Monthly cron job
+#   8 Schedule (cron), matching the Takeout frequency
 #
 # Linux (Debian/Ubuntu, amd64/arm64). Run as your normal user; it uses sudo for steps 1 and 3.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
+UPDATE=0
+case "${1:-}" in
+    "") ;;
+    --update) UPDATE=1 ;;
+    *) echo "usage: $0 [--update]" >&2; exit 64 ;;
+esac
 BIN_DIR="$HOME/.local/bin"
 LIB_DIR="$HOME/.local/lib/photo-archive"
 CONFIG_DIR="$HOME/.config/photo-archive"
@@ -28,11 +38,16 @@ warn() { printf '\033[33m%s\033[0m\n' "$*"; }
 die()  { printf '\033[31mError: %s\033[0m\n' "$*" >&2; exit 1; }
 ask() {
     local reply
+    if (( UPDATE )); then   # the saved answer, or stop: --update never asks
+        [[ -n "$2" ]] || die "--update has no saved answer for \"$1\"; run install.sh without --update"
+        printf '%s' "$2"; return
+    fi
     if [[ -n "$2" ]]; then read -r -p "$1 [$2]: " reply </dev/tty
     else read -r -p "$1: " reply </dev/tty; fi
     printf '%s' "${reply:-$2}"
 }
 confirm() {
+    if (( UPDATE )); then [[ "$2" == y ]]; return; fi
     local hint="y/N"; [[ "$2" == y ]] && hint="Y/n"
     local reply; read -r -p "$1 [$hint]: " reply </dev/tty
     reply="$(printf '%s' "${reply:-$2}" | tr '[:upper:]' '[:lower:]')"
@@ -47,7 +62,7 @@ version_ge() {
         exit 0 }'
 }
 
-bold "photo-archive installer"
+if (( UPDATE )); then bold "photo-archive update"; else bold "photo-archive installer"; fi
 echo "Monthly: download Google Takeout from Drive -> verify -> let Google trash it -> update the photo library."
 echo "The Google-side steps (Takeout, service account, Apps Script) are explained in docs/setup.md."
 [[ $EUID -ne 0 ]] || die "run as your normal user (it asks for sudo when needed)"
@@ -67,6 +82,8 @@ if [[ -f "$CONFIG_FILE" ]]; then
     echo "Found $CONFIG_FILE; its values are offered as defaults."
     # shellcheck source=/dev/null
     source "$CONFIG_FILE"
+elif (( UPDATE )); then
+    die "no $CONFIG_FILE: photo-archive isn't installed for $USER yet; run install.sh without --update"
 fi
 
 # --- 1. system packages --------------------------------------------------------------
@@ -114,11 +131,11 @@ set_env() {  # set_env KEY VALUE FILE
 }
 (
     cd "$IMMICH_DIR"
-    # An earlier root-run install may own these; the database folder stays as Docker made it.
-    for f in docker-compose.yml .env docker-compose.override.yml; do
-        [[ -e "$f" && ! -O "$f" ]] && sudo chown "$USER": "$f"
-    done
-    curl -fsSL -o docker-compose.yml "$REL/docker-compose.yml"
+    if (( UPDATE )); then
+        [[ -f docker-compose.yml ]] || die "no Immich in $IMMICH_DIR; run install.sh without --update"
+    else
+        curl -fsSL -o docker-compose.yml "$REL/docker-compose.yml"
+    fi
     if [[ ! -f .env ]]; then
         curl -fsSL -o .env "$REL/example.env"
         set_env DB_PASSWORD "$(openssl rand -hex 24)" .env
@@ -127,18 +144,38 @@ set_env() {  # set_env KEY VALUE FILE
     set_env UPLOAD_LOCATION "$IMMICH_DIR/upload" .env
     set_env DB_DATA_LOCATION "$IMMICH_DIR/postgres" .env
     set_env TZ "$(timedatectl show -p Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || echo Etc/UTC)" .env
-    # Writable Library mount, Immich running as you (not root), ownership fixes.
-    "$HERE/scripts/immich-as-user.sh" "$BASE_DIR" --no-start
-    echo "Starting Immich (the first start downloads several GB)..."
-    for attempt in 1 2 3 4 5; do   # ghcr.io rate-limits bursts of parallel pulls
-        sudo env COMPOSE_PARALLEL_LIMIT=1 docker compose pull -q && break
-        (( attempt == 5 )) && die "Immich image download failed; re-run later"
-        warn "Download failed, retrying in $((attempt * 30))s"; sleep $((attempt * 30))
-    done
+    # Immich runs as you, not root, so the .xmp sidecars it writes into the Library stay
+    # editable by photo-archive. The Library is writable so Immich can save your edits
+    # (dates, descriptions) into those sidecars; read-only makes Immich silently revert them.
+    mkdir -p upload ml-cache/{cache,home-cache,home-config}
+    cat >docker-compose.override.yml <<EOF
+# Generated by photo-archive install.sh -- edits will be overwritten.
+services:
+  immich-server:
+    user: "$(id -u):$(id -g)"
+    volumes:
+      - $BASE_DIR/Library:/mnt/library
+  immich-machine-learning:
+    user: "$(id -u):$(id -g)"
+    volumes:
+      - $IMMICH_DIR/ml-cache/cache:/cache
+      - $IMMICH_DIR/ml-cache/home-cache:/.cache
+      - $IMMICH_DIR/ml-cache/home-config:/.config
+EOF
+    if (( ! UPDATE )); then
+        echo "Starting Immich (the first start downloads several GB)..."
+        for attempt in 1 2 3 4 5; do   # ghcr.io rate-limits bursts of parallel pulls
+            sudo env COMPOSE_PARALLEL_LIMIT=1 docker compose pull -q && break
+            (( attempt == 5 )) && die "Immich image download failed; re-run later"
+            warn "Download failed, retrying in $((attempt * 30))s"; sleep $((attempt * 30))
+        done
+    fi
     sudo docker compose up -d
 )
 for _ in $(seq 1 60); do curl -fs "$IMMICH_URL/api/server/ping" >/dev/null && break; sleep 5; done
 curl -fs "$IMMICH_URL/api/server/ping" >/dev/null || die "Immich didn't start; check: cd $IMMICH_DIR && sudo docker compose logs"
+(cd "$IMMICH_DIR" && sudo docker compose exec -T immich-server sh -c 't=/mnt/library/.write-test; touch $t && rm $t') \
+    || die "Immich can't write to $BASE_DIR/Library (check its owner: ls -ld $BASE_DIR/Library)"
 ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
 
 KEY_FILE="$BASE_DIR/state/immich_api_key"
@@ -250,6 +287,7 @@ while true; do
         if grep -q '"canEdit": true' <<<"$out"; then
             confirm "Use '$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["name"])' "$out")' ($FOLDER_ID)?" y && break
         else
+            (( UPDATE )) && die "the service account can only view '$FOLDER_ID'; share it as Editor, then re-run"
             warn "The service account can only *view* that folder; change its share to Editor."
             read -r -p "Press Enter to check again..." </dev/tty; continue
         fi
@@ -278,7 +316,17 @@ FOLDER_NAME="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["name"
 # --- 7. Apps Script ------------------------------------------------------------------------------
 step "7/8 Apps Script (trashes verified Takeout files)"
 GS="$CONFIG_DIR/trash_verified.gs"
+gs_before="$(cat "$GS" 2>/dev/null || true)"
 sed "s/__FOLDER_ID__/$FOLDER_ID/" "$HERE/apps_script/trash_verified.gs" >"$GS"
+if (( UPDATE )); then
+    if [[ "$(cat "$GS")" == "$gs_before" ]]; then
+        echo "Apps Script unchanged; nothing to do in your Google account."
+    else
+        warn "The Apps Script changed. Paste the new version over the old one at"
+        warn "https://script.google.com (photo-archive project), save, and run install once:"
+        warn "  $GS"
+    fi
+fi
 cat <<EOF
 Only you (the owner) can trash your Takeout files, so a small script in your Google
 account does it, daily, for files photo-archive has verified. One-time setup:
@@ -289,9 +337,11 @@ account does it, daily, for files photo-archive has verified. One-time setup:
   4. The log should say "daily trigger installed". Done.
 The script: $GS
 EOF
-if confirm "Show the script here to copy it?" y; then echo; cat "$GS"; echo; fi
-confirm "Have you installed the Apps Script (you can also do it later)?" y \
-    || warn "Until it's installed, verified files stay in Drive; photo-archive status will remind you."
+if (( ! UPDATE )); then
+    if confirm "Show the script here to copy it?" y; then echo; cat "$GS"; echo; fi
+    confirm "Have you installed the Apps Script (you can also do it later)?" y \
+        || warn "Until it's installed, verified files stay in Drive; photo-archive status will remind you."
+fi
 
 # --- 8. config + schedule ---------------------------------------------------------------------------
 step "8/8 Schedule"
@@ -375,7 +425,7 @@ else
     echo "No schedule. When Takeout emails that your export is ready, run: photo-archive run --force"
 fi
 old="$(crontab -l 2>/dev/null | grep -E 'google-photo-mirror|# google-drive-mirror' || true)"
-if [[ -n "$old" ]]; then
+if [[ -n "$old" ]] && (( ! UPDATE )); then
     echo "Older photo/drive mirror cron entries found:"; echo "$old" | sed 's/^/  /'
     confirm "Remove them (photo-archive replaces them)?" y && drop_old=1 || drop_old=0
 else
@@ -388,6 +438,13 @@ fi
 } | crontab -
 [[ -z "$cron_line" ]] || echo "Cron job: $cron_line"
 
+if (( UPDATE )); then
+    echo
+    bold "Updated."
+    echo "  Settings, library and Immich data unchanged. To upgrade Immich itself, read its"
+    echo "  release notes, then: cd $IMMICH_DIR && sudo docker compose pull && sudo docker compose up -d"
+    exit 0
+fi
 case "$TAKEOUT_FREQUENCY" in
     monthly) freq_text='"Export every month for 1 year"' ;;
     bimonthly) freq_text='"Export every 2 months for 1 year"' ;;
@@ -412,3 +469,4 @@ echo "  Status:        photo-archive status"
 echo "  Run now:       photo-archive run --force"
 echo "  Logs:          $BASE_DIR/state/pipeline/logs/"
 echo "  Change setup:  re-run this installer"
+echo "  Update:        git pull, then install.sh --update"

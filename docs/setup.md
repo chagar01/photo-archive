@@ -211,6 +211,21 @@ With *Export once* there's nothing to renew: set up another one-off export whene
 
 ---
 
+## Updating photo-archive
+
+```sh
+cd photo-archive && git pull && ./install.sh --update
+```
+
+`--update` applies the new version using the answers you gave last time, without asking anything. It keeps
+your photos, Immich's data and your settings, and doesn't change Immich's version. If the Apps Script
+changed, it says so: paste the new version over the old one at script.google.com, save, and run `install`
+once. If a saved setting no longer works (e.g. the key was revoked), it stops and tells you to run the
+interactive `./install.sh`. That's also how you change settings such as the Takeout frequency.
+
+Immich updates separately. Read its [release notes](https://github.com/immich-app/immich/releases) first
+(some versions need manual steps), then: `cd <data>/immich && sudo docker compose pull && sudo docker compose up -d`.
+
 ## Day-to-day
 
 - **Viewing**: Immich at `http://<this-machine>:2283` in a browser, or the Immich mobile app (server URL
@@ -239,7 +254,7 @@ With *Export once* there's nothing to renew: set up another one-off export whene
 | status: `Drive folder '…' not found` | The Takeout folder was deleted or unshared. Re-share it, or re-run the installer to pick another. |
 | status: `export still arriving` / `export incomplete` | Normal while Takeout delivers. Later runs (up to the 9th) retry. |
 | status: `not enough disk space` | Free space on the data disk, then `photo-archive run --force`. |
-| status: `Immich reports N of M photos offline` | Immich can't see your Library folder. Run `scripts/immich-as-user.sh <data folder>` to rewrite and check its mount. |
+| status: `Immich reports N of M photos offline` | Immich can't see your Library folder. Run `install.sh --update`, which rewrites Immich's Library mount and checks that Immich can write to it. |
 | status: `photos newly in Immich's trash` | More than 5% of photos were deleted in Immich since the last run. If you meant to, run `python3 ~/.local/lib/photo-archive/takeout_sync.py --base <data> --takeout <data>/Takeout --apply --allow-mass-archive` once; otherwise restore them from Immich's trash. |
 | Takeout email: export failed, or not enough storage | Free up Google storage ([below](#google-storage-filling-up)); the next scheduled export retries. |
 
