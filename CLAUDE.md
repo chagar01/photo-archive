@@ -4,7 +4,8 @@ Monthly, unattended Google Photos backup into a self-hosted, browsable archive (
 Takeout is scheduled in Google's UI and delivered to Drive; browser automation of Takeout
 doesn't survive Google's login checks. User-facing setup is in `docs/setup.md`.
 
-## Flow (`lib/pipeline.py`, cron: `0 1 3-9 * *`)
+## Flow (`lib/pipeline.py`; cron `0 1 3-9 * *` for monthly Takeout, `0 1 3-9 <months after each export> *` for
+bimonthly, none for a one-off export: `TAKEOUT_FREQUENCY` in config.env, chosen in install.sh)
 1. **Download**: `rclone copy` from the Drive Takeout folder into `BASE/Takeout/` (staging). This uses a service account
    with a read-only rclone remote, and copies only files that aren't tagged yet.
 2. **Verify**: each file's size and md5 must match Drive's (cached in `state/pipeline/verified.json`), every zip must open, and
@@ -18,8 +19,8 @@ doesn't survive Google's login checks. User-facing setup is in `docs/setup.md`.
 
 Outcomes (`state/pipeline/history.log`): OK / NOTHING_NEW / TRANSIENT (exit 75, escalates after 3) / NEEDS_HUMAN
 (the `NEEDS_ATTENTION` file plus syslog). `last_success` (YYYY-MM) makes the 4th–9th cron runs no-ops once the month has succeeded.
-Warnings (in `WARNINGS`): tagged files still in Drive after 7 days, meaning the Apps Script isn't running. No new export for 45 days
-means the Takeout schedule (monthly, for a year) has expired.
+Warnings (in `WARNINGS`): tagged files still in Drive after 7 days, meaning the Apps Script isn't running. No new export for 45 days (monthly)
+or 75 days (bimonthly; never for `once`) means the yearly Takeout schedule has expired.
 
 ## Layout
 - `lib/`: everything at runtime. `pipeline.py` (orchestrator), `drive.py` (Drive API as the service account; the JWT is

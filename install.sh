@@ -62,7 +62,7 @@ esac
 # Previous settings become defaults.
 BASE_DIR=""; RCLONE_BIN=""; RCLONE_REMOTE="photo-archive-drive"; SERVICE_ACCOUNT_FILE=""
 SERVICE_ACCOUNT_EMAIL=""; FOLDER_ID=""; FOLDER_NAME="Takeout"; IMMICH_URL="http://localhost:2283"
-WORKERS=6
+WORKERS=6; TAKEOUT_FREQUENCY="monthly"; TAKEOUT_FIRST_MONTH=""
 if [[ -f "$CONFIG_FILE" ]]; then
     echo "Found $CONFIG_FILE; its values are offered as defaults."
     # shellcheck source=/dev/null
@@ -295,6 +295,28 @@ confirm "Have you installed the Apps Script (you can also do it later)?" y \
 
 # --- 8. config + schedule ---------------------------------------------------------------------------
 step "8/8 Schedule"
+cat <<'EOF'
+Which frequency did you choose (or will you choose) in Google Takeout?
+  1) Export every month for 1 year     (recommended: new photos arrive within a month)
+  2) Export every 2 months for 1 year
+  3) Export once                       (no schedule: you run photo-archive when it arrives)
+EOF
+prev_freq="$TAKEOUT_FREQUENCY"
+case "$TAKEOUT_FREQUENCY" in bimonthly) d=2 ;; once) d=3 ;; *) d=1 ;; esac
+while true; do
+    case "$(ask "Choice" "$d")" in
+        1) TAKEOUT_FREQUENCY=monthly; break ;;
+        2) TAKEOUT_FREQUENCY=bimonthly; break ;;
+        3) TAKEOUT_FREQUENCY=once; break ;;
+    esac
+done
+if [[ "$TAKEOUT_FREQUENCY" == bimonthly ]]; then
+    echo "Exports then arrive every other month, starting the month you create the schedule."
+    while true; do
+        TAKEOUT_FIRST_MONTH="$(ask "Month the first export arrives (1-12)" "${TAKEOUT_FIRST_MONTH:-$(date +%-m)}")"
+        [[ "$TAKEOUT_FIRST_MONTH" =~ ^([1-9]|1[0-2])$ ]] && break
+    done
+fi
 q() { sq "$1"; }
 [[ -f "$CONFIG_FILE" ]] && cp "$CONFIG_FILE" "$CONFIG_FILE.bak"
 cat >"$CONFIG_FILE" <<EOF
@@ -309,27 +331,49 @@ FOLDER_ID=$(q "$FOLDER_ID")
 FOLDER_NAME=$(q "$FOLDER_NAME")
 IMMICH_URL=$(q "$IMMICH_URL")
 WORKERS=$(q "$WORKERS")
+# How often Takeout exports (monthly, bimonthly or once): sets the "no new export" warning.
+TAKEOUT_FREQUENCY=$(q "$TAKEOUT_FREQUENCY")
+TAKEOUT_FIRST_MONTH=$(q "$TAKEOUT_FIRST_MONTH")
 # Advanced (defaults in pipeline.py): SETTLE_HOURS STALE_TAG_DAYS EXPORT_OVERDUE_DAYS TRANSIENT_ESCALATE_AFTER
 EOF
 chmod 600 "$CONFIG_FILE"
 echo "Wrote $CONFIG_FILE"
 
-cat <<'EOF'
-Default schedule: 01:00 on the 3rd of each month. The job is also listed for the 4th-9th
-at 01:00, but those runs exit immediately once the month has succeeded; they only do
-work if the 3rd failed (network down, export still arriving...).
+case "$TAKEOUT_FREQUENCY" in
+    monthly)
+        SCHEDULE="0 1 3-9 * *"
+        echo "Default schedule: 01:00 on the 3rd of every month." ;;
+    bimonthly)
+        # The month after each export (first, first+2, ...), so it has finished arriving.
+        months="$(for i in 0 1 2 3 4 5; do echo $(( (TAKEOUT_FIRST_MONTH + 2 * i) % 12 + 1 )); done |
+                  sort -n | paste -sd, -)"
+        SCHEDULE="0 1 3-9 $months *"
+        echo "Default schedule: 01:00 on the 3rd of the month after each export (months $months)." ;;
+    once)
+        SCHEDULE="" ;;
+esac
+if [[ -n "$SCHEDULE" ]]; then
+    cat <<'EOF'
+The job is also listed for the 4th-9th at 01:00, but those runs exit immediately once
+the month has succeeded; they only do work if the 3rd failed (network down, export
+still arriving...).
 EOF
-SCHEDULE="0 1 3-9 * *"
-prev="$(crontab -l 2>/dev/null | grep -F "$CRON_TAG" | head -n 1 | awk '{print $1, $2, $3, $4, $5}' || true)"
-if [[ -n "$prev" && "$prev" != "$SCHEDULE" ]] && confirm "Keep your current schedule ($prev)?" y; then
-    SCHEDULE="$prev"
-elif ! confirm "Use the default schedule?" y; then
-    while true; do
-        SCHEDULE="$(ask "Cron expression (min hour day-of-month month day-of-week)" "$SCHEDULE")"
-        [[ "$(wc -w <<<"$SCHEDULE")" -eq 5 ]] && break
-    done
+    prev="$(crontab -l 2>/dev/null | grep -F "$CRON_TAG" | head -n 1 | awk '{print $1, $2, $3, $4, $5}' || true)"
+    # A custom schedule is offered back only while the frequency stays the same.
+    if [[ -n "$prev" && "$prev" != "$SCHEDULE" && "$prev_freq" == "$TAKEOUT_FREQUENCY" ]] &&
+        confirm "Keep your current schedule ($prev)?" y; then
+        SCHEDULE="$prev"
+    elif ! confirm "Use the default schedule?" y; then
+        while true; do
+            SCHEDULE="$(ask "Cron expression (min hour day-of-month month day-of-week)" "$SCHEDULE")"
+            [[ "$(wc -w <<<"$SCHEDULE")" -eq 5 ]] && break
+        done
+    fi
+    cron_line="$SCHEDULE $BIN_DIR/photo-archive run >/dev/null 2>>$BASE_DIR/logs/cron-errors.log $CRON_TAG"
+else
+    cron_line=""
+    echo "No schedule. When Takeout emails that your export is ready, run: photo-archive run --force"
 fi
-cron_line="$SCHEDULE $BIN_DIR/photo-archive run >/dev/null 2>>$BASE_DIR/logs/cron-errors.log $CRON_TAG"
 old="$(crontab -l 2>/dev/null | grep -E 'google-photo-mirror|# google-drive-mirror' || true)"
 if [[ -n "$old" ]]; then
     echo "Older photo/drive mirror cron entries found:"; echo "$old" | sed 's/^/  /'
@@ -340,18 +384,24 @@ fi
 {
     crontab -l 2>/dev/null | grep -vF "$CRON_TAG" |
         { if (( drop_old )); then grep -vE 'google-photo-mirror|# google-drive-mirror'; else cat; fi; } || true
-    echo "$cron_line"
+    [[ -z "$cron_line" ]] || echo "$cron_line"
 } | crontab -
-echo "Cron job: $cron_line"
+[[ -z "$cron_line" ]] || echo "Cron job: $cron_line"
 
+case "$TAKEOUT_FREQUENCY" in
+    monthly) freq_text='"Export every month for 1 year"' ;;
+    bimonthly) freq_text='"Export every 2 months for 1 year"' ;;
+    once) freq_text='"Export once"' ;;
+esac
 cat <<EOF
 
-$(bold "Almost done.") If you haven't yet, schedule Google Takeout to deliver here:
+$(bold "Almost done.") If you haven't yet, set up Google Takeout to deliver here:
   https://takeout.google.com > Deselect all > tick Google Photos > Next step >
-  Destination "Add to Drive", Frequency "Export every month for 1 year",
+  Destination "Add to Drive", Frequency $freq_text,
   File type .zip, size 2 GB > Create export.
-  (Takeout schedules last a year; photo-archive status warns when exports stop arriving.)
 EOF
+[[ "$TAKEOUT_FREQUENCY" == once ]] ||
+    echo "  (Takeout schedules last a year; photo-archive status warns when exports stop arriving.)"
 if confirm "Preview a run now (dry run, changes nothing)?" y; then
     "$BIN_DIR/photo-archive" --dry-run || true
 fi

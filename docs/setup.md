@@ -35,7 +35,7 @@ Plan on about an hour of your own time, plus a wait of hours to days for Google'
 ## 1. Schedule Google Takeout
 
 Google Takeout is Google's export tool. photo-archive doesn't try to drive it automatically:
-Google blocks automated logins. Instead you schedule it once, and Google repeats the export for a year.
+Google blocks automated logins. Instead you set it up once, and Google can repeat the export for a year.
 
 1. Open [takeout.google.com](https://takeout.google.com), signed in to the account that holds your photos.
 2. Under **Select data to include**, click **Deselect all**, then scroll down and tick **Google Photos**.
@@ -43,7 +43,15 @@ Google blocks automated logins. Instead you schedule it once, and Google repeats
 3. Click **Next step** at the bottom.
 4. Choose:
    - **Transfer to**: *Add to Drive*
-   - **Frequency**: *Export every month for 1 year*. This matches photo-archive's monthly run on the 3rd.
+   - **Frequency**: one of the three options. Remember which; the installer asks.
+
+     | Takeout option | photo-archive runs | Good for |
+     |---|---|---|
+     | *Export every month for 1 year* (12 exports) **recommended** | 01:00 on the 3rd of every month | new photos reach your archive within a month |
+     | *Export every 2 months for 1 year* (6 exports) | 01:00 on the 3rd of the month after each export | half the downloads, if bandwidth or Google storage is tight |
+     | *Export once* (1 export) | not scheduled: you run `photo-archive run --force` when Google's email arrives | trying it out, or an occasional manual refresh |
+
+     If the 3rd's run fails (network down, export still arriving), it retries daily until the 9th.
    - **File type**: *.zip* (photo-archive doesn't read .tgz)
    - **File size**: *2 GB* (any size works; 2 GB parts make retries cheap)
 5. Click **Create export**.
@@ -56,7 +64,7 @@ appear in your Drive in a folder called **Takeout**, as `takeout-<date>-1-001.zi
 > normally delivers into it. When the first export arrives, check that it landed there. If Takeout
 > made a second folder instead, re-run `install.sh` and pick that one.
 
-Takeout stops after a year. See [Every year](#every-year-renew-the-takeout-schedule).
+A scheduled export stops after a year. See [Every year](#every-year-renew-the-takeout-schedule).
 
 ## 2. Create a Google Cloud service account
 
@@ -130,7 +138,7 @@ it asks, and what it needs from you:
 | 5. Service account | the path to the `.json` key from step 2d |
 | 6. Takeout folder | pick it from the list (needs step 3) |
 | 7. Apps Script | nothing yet. It writes the script for step 5 and can print it for you to copy |
-| 8. Schedule | Enter to accept the default (01:00 on the 3rd of each month, with retries until the 9th) |
+| 8. Schedule | the Takeout frequency you chose in step 1. For *every 2 months*, also the month the first export arrives. Then Enter to accept the matching schedule (see the table in step 1) |
 
 Notes:
 - Immich's first start downloads several GB of Docker images. If GitHub's registry rate-limits the
@@ -187,9 +195,13 @@ and tells Immich to scan. Then:
 
 ## Every year: renew the Takeout schedule
 
-Takeout's scheduled exports end after a year. When no new export has arrived for 45 days,
-`photo-archive status` shows `no new Takeout export since …`. Repeat [step 1](#1-schedule-google-takeout).
-Nothing else needs to change, as long as the export lands in the same Takeout folder.
+Takeout's scheduled exports end after a year. When no new export has arrived for 45 days (monthly) or
+75 days (every 2 months), `photo-archive status` shows `no new Takeout export since …`. Repeat
+[step 1](#1-schedule-google-takeout) with the same frequency. Nothing else needs to change, as long as the
+export lands in the same Takeout folder. To switch frequency, or for every 2 months if the new schedule
+starts in a different month, re-run `install.sh` too, so the run months match.
+
+With *Export once* there's nothing to renew: set up another one-off export whenever you want a refresh.
 
 ---
 
@@ -240,7 +252,7 @@ and permanently delete the `takeout-…` files.
 ## Uninstall
 
 ```sh
-crontab -l | grep -v '# photo-archive' | crontab -          # stop the monthly job
+crontab -l | grep -v '# photo-archive' | crontab -          # stop the scheduled job
 cd <data>/immich && sudo docker compose down                 # stop Immich (add -v to drop its cache volume)
 rm -rf ~/.local/lib/photo-archive ~/.local/bin/photo-archive ~/.config/photo-archive
 ```

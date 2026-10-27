@@ -160,6 +160,23 @@ assert not any(DESCRIPTIONS.get(p.name) for p in gap)
 # 10. Folder shared as Viewer only: needs a human.
 CAN_EDIT[0] = False
 assert run("--force") == 1 and "Editor" in (BASE / "state/pipeline/NEEDS_ATTENTION").read_text()
+
+# 10b. "No new export" warning follows the Takeout frequency: 60 days is overdue only for monthly.
+CAN_EDIT[0] = True
+for n in list(os.listdir(FAKE_DRIVE)):
+    (FAKE_DRIVE / n).unlink()
+cfg_text = (root / "config.env").read_text()
+for freq, warned in (("monthly", True), ("bimonthly", False), ("once", False)):
+    (root / "config.env").write_text(cfg_text + f"TAKEOUT_FREQUENCY='{freq}'\n")
+    seen = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=60)
+    (BASE / "state/pipeline/last_export_seen").write_text(seen.isoformat())
+    run("--force")
+    w = BASE / "state/pipeline/WARNINGS"
+    got = "no new Takeout export" in (w.read_text() if w.exists() else "")
+    assert got == warned, (freq, got)
+    if warned:
+        assert '"Export every month for 1 year"' in w.read_text()
+(root / "config.env").write_text(cfg_text)
 # 11. The service-account JWT is a valid RS256 signature over header.claims.
 import base64, subprocess, importlib
 importlib.reload(drive)                         # the real Client, not the fake

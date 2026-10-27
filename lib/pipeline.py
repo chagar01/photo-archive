@@ -47,9 +47,15 @@ DEFAULTS = {
     "WORKERS": "6",
     "SETTLE_HOURS": "2",            # don't touch an export whose files changed this recently
     "STALE_TAG_DAYS": "7",          # verified files still in Drive after this: Apps Script broken?
-    "EXPORT_OVERDUE_DAYS": "45",    # monthly exports, for a year at a time
+    "TAKEOUT_FREQUENCY": "monthly", # what was chosen in Takeout: monthly, bimonthly or once
+    "EXPORT_OVERDUE_DAYS": "",      # warn after this long without an export; default by frequency
     "TRANSIENT_ESCALATE_AFTER": "3",
 }
+
+# Takeout frequency -> (days without a new export before warning, Takeout's wording).
+FREQUENCIES = {"monthly": (45, "Export every month for 1 year"),
+               "bimonthly": (75, "Export every 2 months for 1 year"),
+               "once": (None, "Export once")}
 
 log = logging.getLogger("photo-archive")
 
@@ -156,12 +162,13 @@ class Pipeline:
                 f"{len(stale)} verified file(s) still in Drive after {stale_days:g} days: is the "
                 f"Apps Script trigger running? (https://script.google.com, Triggers)")
         seen = self._read("last_export_seen")
-        overdue = float(self.cfg["EXPORT_OVERDUE_DAYS"])
-        if seen and now - dt.datetime.fromisoformat(seen) > dt.timedelta(days=overdue):
+        default, wording = FREQUENCIES.get(self.cfg["TAKEOUT_FREQUENCY"], FREQUENCIES["monthly"])
+        overdue = float(self.cfg["EXPORT_OVERDUE_DAYS"] or default or 0)
+        if seen and overdue and now - dt.datetime.fromisoformat(seen) > dt.timedelta(days=overdue):
             self.warnings.append(
                 f"no new Takeout export since {seen[:10]}: Takeout's scheduled exports stop after "
-                f"a year -- set up a new one at https://takeout.google.com (deliver to Drive, every "
-                f"month, Google Photos only)")
+                f"a year -- set up a new one at https://takeout.google.com (Google Photos only, "
+                f"Add to Drive, \"{wording}\")")
 
     def _local_photo_exports(self) -> list[str]:
         if not self.staging.is_dir():

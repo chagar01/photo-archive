@@ -1,10 +1,11 @@
 # photo-archive
 
 Keeps a browsable, self-hosted copy of your Google Photos on your own Linux machine. It updates
-itself every month without your help, and never loses a photo.
+itself every month (or every two) without your help, and never loses a photo.
 
 ```
-Google Takeout ────monthly─────▶ Google Drive /Takeout
+Google Takeout ──monthly or────▶ Google Drive /Takeout
+               every 2 months
                                         │  1. download (read-only service account)
                                         ▼
                          your machine:  2. verify (checksums, every zip, no missing parts)
@@ -16,7 +17,7 @@ Google Takeout ────monthly─────▶ Google Drive /Takeout
                                    Immich  http://<this-machine>:2283
 ```
 
-- **Unattended**: a monthly cron job, with automatic retries and a clear status when something needs you.
+- **Unattended**: a cron job matched to your Takeout schedule, with automatic retries and a clear status when something needs you.
 - **Dates you can trust**: Google's dates are often wrong (upload times, re-encodes, scans). Each photo's
   date is cross-checked against EXIF, file names, album titles and neighbouring camera frames.
 - **Nothing is ever deleted**: photos removed from Google Photos, and old versions of changed photos, move
@@ -31,13 +32,14 @@ Google Takeout ────monthly─────▶ Google Drive /Takeout
 Part of the setup happens in your Google account, where no script can reach. **Follow
 [docs/setup.md](docs/setup.md)**, which gives click-by-click instructions for every step. In short:
 
-1. **Google Takeout**: schedule a monthly Google Photos export to Drive (matching photo-archive's monthly run).
+1. **Google Takeout**: schedule a Google Photos export to Drive, monthly (recommended) or every 2 months.
+   A one-off export works too, run by hand.
 2. **Google Cloud**: create a service account with the Drive API enabled, and download its JSON key.
 3. **Google Drive**: share the Takeout folder with the service account as Editor.
 4. **Your machine**: `git clone https://github.com/chagar01/photo-archive.git && photo-archive/install.sh`.
-   It sets up Docker, Immich, rclone, the key, the folder and the monthly schedule.
+   It sets up Docker, Immich, rclone, the key, the folder, and a schedule matching your Takeout frequency.
 5. **Apps Script**: paste the generated script into script.google.com and run `install` once.
-6. **Every year**: renew the Takeout schedule (photo-archive reminds you).
+6. **Every year**: renew the Takeout schedule (photo-archive reminds you when exports stop).
 
 Requirements: Debian or Ubuntu (x86-64 or ARM64), disk space of about 2.2× your photo library, and Google
 storage with room for one export.
@@ -47,7 +49,7 @@ storage with room for one export.
 ```sh
 photo-archive status          # last runs, warnings, anything that needs you
 photo-archive --dry-run       # what a run would do now
-photo-archive run --force     # run now, even if this month already succeeded
+photo-archive run --force     # run now, even if this month already succeeded (or for a one-off export)
 ```
 
 - **Fix a date**: edit it in Immich; it sticks. For many photos, add `path,date` lines to
