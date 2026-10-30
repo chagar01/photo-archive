@@ -29,6 +29,14 @@ Google Takeout ──monthly or────▶ Google Drive /Takeout
   sit there using your Google storage.
 - **Small**: Python 3 standard library plus exiftool, rclone and Docker (for [Immich](https://immich.app)).
 
+## Use is AI
+
+This project has been written using claude. Frankly I find vibecoding analogous to eating a cheap burger joint. You feel 
+dirty afterwards. However, my programming loves are not in this area, and if this project helps someone get their photos
+synched up then that's a good thing. GooglePhotos used to be nice, and they would place your photos in a subdirectory
+of your GoogleDrive, but this is sadly no longer the case and you need fairly complex machinery, like this project,
+to do syncing. 
+
 ## Setup
 
 Part of the setup happens in your Google account, where no script can reach. **Follow
